@@ -1,6 +1,6 @@
 #pragma once
-#include <vector>
 #include "Map.h"
+#include "OpponentTrackingService.h"
 
 class Player
 {
@@ -8,7 +8,6 @@ public:
 	Player(int playerId) :
 		playerId(playerId), torpedoCooldown(3),
 		sonarCooldown(3), silenceCooldown(3), mineCooldown(3), x(0), y(0) { };
-
 public:
 	std::vector<Cell> path;
 	Cell cell;
@@ -21,6 +20,7 @@ public:
 	int silenceCooldown;
 	int mineCooldown;
 	std::string output;
+	OpponentTrackingService opponentTracking;
 };
 
 class Game

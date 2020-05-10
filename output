@@ -1,0 +1,599 @@
+/*-- File: Const.cpp start --*/
+/*-- #include "Const.h" start --*/
+#include <string>
+
+class Const
+{
+	static const std::string TORPEDO, MOVE, SURFACE;
+};
+
+
+
+const std::string Const::TORPEDO = "TORPEDO";
+const std::string Const::MOVE = "MOVE";
+const std::string Const::SURFACE = "SURFACE";
+/*-- File: Const.cpp end --*/
+/*-- #include "Const.h" start --*/
+/*-- #include "FloodFillService.h" start --*/
+/*-- #include "Map.h" start --*/
+#include <iostream>
+#include <unordered_map>
+#include <algorithm>
+#include <string>
+#include <vector>
+#include <unordered_set>
+#include <queue>
+#include <map>
+#include <unordered_map>
+#include <iomanip>
+#include <cmath>
+
+class Direction
+{
+public:
+	Direction(int dx, int dy, char dir) : dx(dx), dy(dy), dir(dir) {};
+
+	bool operator==(const Direction& p) const {
+		return dx == p.dx && dy == p.dy && dir == p.dir;
+	}
+public:
+	const int dx, dy;
+	const char dir;
+};
+
+class Cell
+{
+public:
+	inline Cell() : x(-1), y(-1), type('*') {};
+	inline Cell(int x, int y, char type) : x(x), y(y), type(type) {};
+	inline int index() { return x + (y * 15); }
+	inline operator std::string() const { return x + " " + y; };
+	inline bool DealsDamageTo(Cell cell) { return std::abs(x - cell.x) <= 1 && std::abs(y - cell.y) < 1; };
+	inline bool canMove(char dir, int length) 
+	{ 
+		auto curr = this;
+		for (size_t i = 0; i < length; i++)
+		{
+			if (curr->neighbors.find(dir) != curr->neighbors.end())
+			{
+				return false;
+			}
+			curr = curr->neighbors[dir];
+		}
+		return true;
+	};
+
+	inline Cell* move(char dir, int length)
+	{
+		auto curr = this;
+		for (size_t i = 0; i < length; i++)
+		{
+			curr = curr->neighbors[dir];
+		}
+		return curr;
+	};
+
+public:
+	int x;
+	int y;
+	char type;
+	std::unordered_map<char, Cell*> neighbors;
+	std::unordered_set<Cell*> torpedoTargets;
+	std::unordered_set<Cell*> toDamage;
+};
+
+class dire
+{
+public:
+	dire(int x, int y, char d) : dx(x), dy(y), dir(d) {};
+	int dx,
+		dy;
+	char dir;
+};
+
+class Map
+{
+public:
+	static Cell GetCell(int x, int y) { return Board[x + (y * width)]; };
+	static Cell GetCellByIndex(int index) { return Board[index]; };
+	static Cell& GetCellRef(int x, int y) { return Board[x + (y * width)]; };
+	static void AddCell(Cell cell) { Board.push_back(cell); };
+	static bool IsValid(int x, int y) { return (x >= 0 && y >= 0 && x < 15 && y < 15); };
+	static void Initilize()
+	{
+		for (auto& cell : Board)
+		{
+			if (cell.type == '.')
+				SetupCell(cell);
+		}
+
+		for (auto& cell : Board)
+		{
+			if (cell.type == '.')
+			{
+				SetupTorpedo(cell);
+				SetupDamage(cell);
+			}
+		}
+
+		std::cerr << "Torpedo range: " << std::endl;
+		for (size_t y = 0; y < 15; y++)
+		{
+			for (size_t x = 0; x < 15; x++)
+			{
+				auto curr = GetCell(x, y);
+				if (curr.type == '.')
+					std::cerr << std::setw(3) << curr.torpedoTargets.size() << " ";
+				else
+					std::cerr << std::setw(3) << "-" << " ";
+			}
+			std::cerr << std::endl;
+		}
+	}
+private:
+	static void SetupTorpedo(Cell& cell)
+	{
+		for (size_t i = 0; i < 3; i++)
+		{
+			std::unordered_set<Cell*> toAdd;
+
+			for (Cell* curr : cell.torpedoTargets)
+			{
+				for (auto neigh : curr->neighbors)
+				{
+					toAdd.insert(neigh.second);
+				}
+			}
+
+			for (Cell* curr : toAdd)
+				cell.torpedoTargets.insert(curr);
+		}
+	};
+	static void SetupCell(Cell& cell)
+	{
+		dire neighbors[4] = { dire(0,-1,'N'), dire(0,1,'S'), dire(-1,0,'W'), dire(1,0,'E') };
+		for (size_t i = 0; i < 4; i++)
+		{
+			int x = cell.x + neighbors[i].dx;
+			int y = cell.y + neighbors[i].dy;
+			if (IsValid(x, y))
+				if (GetCell(x, y).type == '.')
+				{
+					cell.neighbors[neighbors[i].dir] = &GetCellRef(x, y);
+					cell.torpedoTargets.insert(&GetCellRef(x, y));
+				}
+
+		}
+	}
+	static void SetupDamage(Cell& cell)
+	{
+		for (auto& c : Board)
+		{
+			if (c.DealsDamageTo(cell))
+			{
+				cell.toDamage.insert(&c);
+			}
+		}
+	}
+public:
+	static std::vector<Cell> Board;
+	static const int width = 15;
+	static const int height = 15;
+};
+
+
+class FloodFillService
+{
+public:
+	static int FindOpenArea(Cell currentCell, std::vector<Cell>& path)
+	{
+		std::queue<int> q; // Nodes to explore
+		std::unordered_set<int> visited;
+
+		for (auto c : path)
+			visited.insert(c.index());
+
+		Cell curr = Map::GetCellByIndex(currentCell.index());
+		q.push(curr.index());
+		visited.insert(curr.index());
+
+		while (!q.empty())
+		{
+			curr = Map::GetCellByIndex(q.front());
+			q.pop();
+
+			for (auto neigh : curr.neighbors)
+			{
+				Cell toFind = *neigh.second;
+				
+				if (visited.find(neigh.second->index()) != visited.end())
+					continue;
+
+				visited.insert(neigh.second->index());
+				q.push(neigh.second->index());
+			}
+		}
+
+		return visited.size();
+	}
+};
+
+
+/*-- #include "Game.h" start --*/
+/*-- #include "Map.h" start --*/
+/*-- #include "OpponentTrackingService.h" start --*/
+#include <unordered_set>
+#include <sstream>
+#include <string>
+/*-- #include "Const.h" start --*/
+
+class OpponentTrackingService
+{
+public:
+	void track(std::string command) {
+		std::vector<std::string> commands;
+		{
+			std::stringstream ss(command);
+			std::string token;
+			while (std::getline(ss, token, '|')) {
+				commands.push_back(token);
+			}
+		}
+
+		for (auto cmd : commands)
+		{
+			std::vector<std::string> cmdPart;
+			std::stringstream ss(command);
+			std::string token;
+			while (std::getline(ss, token, ' ')) {
+				cmdPart.push_back(token);
+			}
+
+			if (find(cmdPart.begin(), cmdPart.end(), "MOVE") != cmdPart.end())
+			{
+				char dir = cmdPart[1][0];
+				std::cerr << "enemy went: " << dir << std::endl;
+				power++;
+				trackMovement(dir);
+			}
+			else if (find(cmdPart.begin(), cmdPart.end(), "SILENCE") != cmdPart.end())
+			{
+				trackSilence();
+			}
+		}
+		std::cerr << "Possible: " << possibleCells.size() << std::endl;
+		if (possibleCells.size() < 5)
+		{
+			for (auto c : possibleCells)
+				std::cerr << c->x << " " << c->y << " or ";
+			std::cerr << std::endl;
+		}
+
+
+	}
+
+private:
+	void trackSilence()
+	{
+		std::unordered_set<Cell*> next;
+		for (auto c : possibleCells)
+		{
+			for (auto dir : c->neighbors)
+			{
+				for (size_t i = 0; i < 5; i++)
+				{
+					if (!c->canMove(dir.first, i)) break;
+					Cell* endpoint = c->move(dir.first, i);
+					next.insert(endpoint);
+				}
+			}
+		}
+		possibleCells = next;
+	}
+	void trackMovement(char dir)
+	{
+		std::unordered_set<Cell*> next;
+		for (auto c : possibleCells)
+		{
+			for (auto neigh : c->neighbors)
+			{
+				if (neigh.first != dir)
+					continue;
+
+				next.insert(neigh.second);
+			}
+		}
+		possibleCells = next;
+	}
+
+public:
+	std::unordered_set<Cell*> possibleCells;
+	int power;
+
+};
+
+
+
+class Player
+{
+public:
+	Player(int playerId) :
+		playerId(playerId), torpedoCooldown(3),
+		sonarCooldown(3), silenceCooldown(3), mineCooldown(3), x(0), y(0) { };
+public:
+	std::vector<Cell> path;
+	Cell cell;
+	int playerId;
+	int health = 6;
+	int x;
+	int y;
+	int torpedoCooldown;
+	int sonarCooldown;
+	int silenceCooldown;
+	int mineCooldown;
+	std::string output;
+	OpponentTrackingService opponentTracking;
+};
+
+class Game
+{
+public:
+	inline Game() : players{ Player(0), Player(1) } {};
+public:
+	Player players[2];
+};
+
+
+
+/*-- File: main.cpp start --*/
+#include <iostream>
+#include <unordered_map>
+#include <algorithm>
+#include <string>
+#include <vector>
+#include <unordered_set>
+#include <queue>
+#include <map>
+#include <unordered_map>
+#include <iomanip>
+
+/*-- #include "Map.h" start --*/
+/*-- #include "Game.h" start --*/
+/*-- #include "ReadInput.h" start --*/
+#include <iostream>
+#include <string>
+/*-- #include "Game.h" start --*/
+/*-- #include "Map.h" start --*/
+
+
+class ReadInput
+{
+public:
+	inline static void Initilize()
+	{
+		int width;
+		int height;
+		int myId;
+		std::cin >> width >> height >> myId; std::cin.ignore();
+		for (int y = 0; y < height; y++) {
+			std::string line;
+			getline(std::cin, line);
+			for (int x = 0; x < line.size(); x++)
+			{
+				Map::AddCell(Cell(x, y, line[x]));
+			}
+		}
+	}
+
+	inline static Game ReadRound(Game lastGame)
+	{
+		Game game;
+		int x;
+		int y;
+		int myLife;
+		int oppLife;
+		int torpedoCooldown;
+		int sonarCooldown;
+		int silenceCooldown;
+		int mineCooldown;
+		std::cin >> x >> y >> myLife >> oppLife >> torpedoCooldown >> sonarCooldown >> silenceCooldown >> mineCooldown; std::cin.ignore();
+		std::string sonarResult;
+		std::cin >> sonarResult; std::cin.ignore();
+		std::string opponentOrders;
+		getline(std::cin, opponentOrders);
+
+		game.players[0].cell = Map::GetCell(x, y);
+		game.players[0].health = myLife;
+		game.players[0].torpedoCooldown = torpedoCooldown;
+		game.players[0].sonarCooldown = sonarCooldown;
+		game.players[0].silenceCooldown = silenceCooldown;
+		game.players[0].mineCooldown = mineCooldown;
+		std::copy(lastGame.players[0].path.begin(), lastGame.players[0].path.end(), std::back_inserter(game.players[0].path));
+		game.players[0].path.push_back(Map::GetCell(x, y));
+		game.players[1].health = oppLife;
+		game.players[1].output = opponentOrders;
+		game.players[1].opponentTracking.possibleCells = lastGame.players[1].opponentTracking.possibleCells;
+		game.players[1].opponentTracking.power = lastGame.players[1].opponentTracking.power;
+		game.players[1].opponentTracking.track(opponentOrders);
+
+		return game;
+	}
+
+	inline static std::string ReadLine()
+	{
+		std::string s;
+		std::getline(std::cin, s);
+		std::cerr << s << std::endl;
+		return s;
+	}
+};
+
+
+/*-- #include "Placement.h" start --*/
+/*-- #include "Map.h" start --*/
+#include <string>
+class Placement
+{
+public:
+	static Cell GetPlacement() {
+		int x = 5;
+		int y = 5;
+		Cell cell = Map::GetCell(x, y);
+
+		for (Cell cell : Map::Board)
+		{
+			if (cell.type != '.')
+				continue;
+			else
+				return cell;
+		}
+	}
+};
+
+
+/*-- #include "ReactAgent.h" start --*/
+/*-- #include "Game.h" start --*/
+/*-- #include "Map.h" start --*/
+/*-- #include "FloodFillService.h" start --*/
+#include <random>
+
+class ReactAgent
+{
+public:
+	ReactAgent(Game& game) : game(game), p1(game.players[0]), p2(game.players[1]),
+		p2Possible(game.players[1].opponentTracking.possibleCells) {};
+
+	std::string think() {
+		std::cerr << "Current pos: " << p1.cell.x << " " << p1.cell.y << std::endl;
+
+		std::string bestAction = "";
+		int bestScore = -1000;
+		Cell bestPosition;
+
+		std::cerr << p1.cell.neighbors.size() << std::endl;
+		for (auto neightbor : p1.cell.neighbors)
+		{
+			auto toFind = *(neightbor.second);
+			auto it = std::find_if(p1.path.begin(), p1.path.end(),
+				[&](Cell c) { return c.index() == toFind.index(); });
+
+			if (it != p1.path.end())
+				continue;
+
+			int size = FloodFillService::FindOpenArea(Map::GetCell(toFind.x, toFind.y), p1.path);
+
+			std::cerr << "Flood score: " << size << " for: " << neightbor.second->x << " " << neightbor.second->y << std::endl;
+			if (size > bestScore)
+			{
+				bestScore = size;
+				std::string s(1, neightbor.first);
+				bestAction = MOVE + " " + s;
+				bestPosition = *neightbor.second;
+			}
+		}
+
+		if (!bestAction.empty())
+		{
+			p1.torpedoCooldown--;
+			p1.cell = bestPosition;
+			return bestAction + " " + getPower() + " " + getTorpedoTarget();
+		}
+		p1.path.clear();
+		return SURFACE + " " + getTorpedoTarget();
+	}
+
+	std::string getPower()
+	{
+		return TORPEDO;
+	}
+
+	std::string getTorpedoTarget()
+	{
+		if (p1.torpedoCooldown > 0)	return "";
+
+		std::vector<Cell*> shuffledList;
+		for (auto c : p1.cell.torpedoTargets)
+			shuffledList.push_back(c);
+		std::random_device rd;
+		std::mt19937 g(rd());
+		std::shuffle(shuffledList.begin(), shuffledList.end(), g);
+
+		for (Cell* target : shuffledList)
+		{
+			if (target->toDamage.find(&p1.cell) != target->toDamage.end()) continue;
+			
+			bool inRange = false;
+			for (Cell* possibleTargetCell : p2Possible)
+				if (possibleTargetCell->toDamage.find(&p1.cell) != possibleTargetCell->toDamage.end())
+				{
+					inRange = true;
+					break;
+				}
+
+			if (!inRange) continue;
+
+			return "| " + TORPEDO + " " + std::to_string(target->x) + " " + std::to_string(target->y);
+		}
+		return "";
+
+	}
+private:
+	Game& game;
+	Player& p1;
+	Player& p2;
+	std::unordered_set<Cell*> p2Possible;
+
+	const std::string TORPEDO = "TORPEDO", MOVE = "MOVE", SURFACE = "SURFACE";
+};
+
+
+
+#include <chrono> 
+using namespace std::chrono;
+
+int main()
+{
+
+	ReadInput::Initilize();
+	Map::Initilize();
+	
+	auto startCell = Placement::GetPlacement();
+	std::string pos = std::to_string(startCell.x) + " " + std::to_string(startCell.y);
+	std::cout << pos << std::endl;
+
+	Game lastGame;
+	lastGame.players[0].path.push_back(startCell);
+
+	for (Cell& c : Map::Board)
+		if (c.type == '.')
+			lastGame.players[1].opponentTracking.possibleCells.insert(&c);
+
+	while (true)
+	{
+		//auto start = high_resolution_clock::now();
+		Game game = ReadInput::ReadRound(lastGame);
+
+		ReactAgent agent(game);
+		std::string result = agent.think();
+		
+		std::cout << result << std::endl;
+
+		lastGame = game;
+		
+		/*auto stop = high_resolution_clock::now();
+		auto duration = duration_cast<milliseconds>(stop - start);
+		std::cerr << "Time (ms): " << duration.count() << std::endl;*/
+	}
+}
+/*-- File: main.cpp end --*/
+/*-- File: Map.cpp start --*/
+#include <vector>
+/*-- #include "Map.h" start --*/
+
+std::vector<Cell> Map::Board;
+/*-- File: Map.cpp end --*/
+/*-- #include "Map.h" start --*/
+/*-- #include "OpponentTrackingService.h" start --*/
+/*-- #include "Placement.h" start --*/
+/*-- #include "ReactAgent.h" start --*/
+/*-- #include "ReadInput.h" start --*/

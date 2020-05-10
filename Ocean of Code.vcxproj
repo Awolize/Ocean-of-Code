@@ -147,12 +147,16 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Const.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Map.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Const.h" />
+    <ClInclude Include="FloodFillService.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="Map.h" />
+    <ClInclude Include="OpponentTrackingService.h" />
     <ClInclude Include="Placement.h" />
     <ClInclude Include="ReactAgent.h" />
     <ClInclude Include="ReadInput.h" />

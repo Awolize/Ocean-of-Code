@@ -14,12 +14,12 @@ public:
 		int height;
 		int myId;
 		std::cin >> width >> height >> myId; std::cin.ignore();
-		for (int i = 0; i < height; i++) {
+		for (int y = 0; y < height; y++) {
 			std::string line;
 			getline(std::cin, line);
-			for (int j = 0; j < line.size(); j++)
+			for (int x = 0; x < line.size(); x++)
 			{
-				Map::AddCell(Cell(i, j, line[j]));
+				Map::AddCell(Cell(x, y, line[x]));
 			}
 		}
 	}
@@ -51,9 +51,11 @@ public:
 		game.players[0].path.push_back(Map::GetCell(x, y));
 		game.players[1].health = oppLife;
 		game.players[1].output = opponentOrders;
+		game.players[1].opponentTracking.possibleCells = lastGame.players[1].opponentTracking.possibleCells;
+		game.players[1].opponentTracking.power = lastGame.players[1].opponentTracking.power;
+		game.players[1].opponentTracking.track(opponentOrders);
 
 		return game;
-
 	}
 
 	inline static std::string ReadLine()
