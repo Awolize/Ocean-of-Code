@@ -23,7 +23,7 @@ jobs:
     - name: Install dependencies
       run: npm i -g codingame-cpp-merge 
 
-    - run: codingame-merge -m main.cpp -o output.cpp
+    - run: codingame-merge -m main.cpp -o a.out
         
     - name: Commit files
       run: |
